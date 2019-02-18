@@ -1,0 +1,247 @@
+---
+title: "shrooms"
+author: "Nathaniel Richardson"
+date: "February 2, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(dplyr)
+require(ggplot2)
+require(readr)
+```
+
+```{r}
+shrooms <- read.csv("mushrooms.csv")
+```
+
+
+```{r}
+sigmoid <- function(h){
+  1 / (1 + exp(-h))
+}
+   
+cross_entropy <- function(Y, P) {
+  -sum(Y*log(P) + (1 - Y)*log(1 - P))
+}
+
+accuracy<- function (Y,P){
+    mean(Y == round(P))
+}
+```
+
+```{r}
+one_hot_encoding <- function(x){
+  
+N = length(x)
+K = length(unique(x))
+u = unique(x)
+ind =1
+q <-c()
+encoded_df <- data_frame("1" <-  c(1:K))
+
+for (i in x){
+  count = 1
+  for (c in u){
+    if (x[ind] == u[count]){
+      q <- rep(0, times = K)
+      q[count] <- 1
+      encoded_df[ind] <- q
+    }
+    count = count+1
+  }
+  ind = ind+1
+} 
+encoded_df <- t(encoded_df)
+
+}
+```
+
+```{r}
+cap_sh_df <- one_hot_encoding(shrooms$cap.shape)
+colnames(cap_sh_df) <- c("is_bell" , "is_conical" , "is_convex", "is_flat", "is_knobbed","is_sunken")
+```
+
+```{r}
+if(FALSE){
+cap_su_df <- one_hot_encoding(shrooms$cap.surface)
+colnames(cap_su_df) <- c("is_fibrous" , "is_gooves" , "is_scaly", "is_smooth")
+}
+```
+
+```{r}
+cap_co_df <- one_hot_encoding(shrooms$cap.color)
+colnames(cap_co_df) <- c("is_brown" , "is_buff" , "is_cinnamon", "is_gray", "is_green", "is_pink", "is_purple", "is_red", "is_white", "is_yellow")
+```
+
+```{r}
+if(FALSE){
+gill_att_df <- one_hot_encoding(shrooms$gill.attachment)
+colnames(gill_att_df) <- c("is_free" , "is_attached")
+}
+```
+
+```{r}
+odor_df <- one_hot_encoding(shrooms$odor)
+colnames(odor_df) <- c("is_almond" , "is_anise" , "is_creosote", "is_fishy", "is_foul", "is_musty", "is_odorless", "is_pungent", "is_spicy")
+```
+
+```{r}
+habitat_df <- one_hot_encoding(shrooms$habitat)
+colnames(habitat_df) <- c("is_grasses" , "is_leaves" , "is_meadows", "is_paths", "is_urban", "is_waste", "is_woods")
+```
+
+
+```{r}
+Y <- c()
+ind =1
+
+for (i in shrooms$class){
+  if (shrooms$class[ind] == "e"){
+    Y[ind] <- 1
+  } else{ Y[ind] <- 0}
+  ind <- ind+1
+}
+```
+
+```{r}
+Phi <- cap_sh_df
+Phi<-cbind(Phi,cap_co_df)
+Phi <-cbind(Phi,odor_df)
+Phi <- cbind(Phi, habitat_df)
+```
+
+```{r}
+Y_train <- Y[1:4874]
+Phi_Train <- Phi[1:4874,]
+```
+
+
+```{r}
+w_rand <- runif(ncol(Phi_Train))
+
+```
+
+```{r}
+w <- w_rand
+J <- c()
+eta = 1e-3
+epochs = 1e5
+en <- c()
+
+
+for (e in 1:epochs) {
+  p_train = sigmoid(Phi_Train%*%w)
+  J[e] <- cross_entropy(Y_train,p_train)
+  w <- w-(eta*t(Phi_Train)%*%(p_train-Y_train))
+  en[e] <- e
+}
+```
+
+```{r}
+plot(x=en,y=J)
+J_plot <- data.frame(
+  "epochs" = en,
+   "J" = J
+ )
+```
+
+```{r}
+acc <- accuracy(Y_train,p_train)
+
+print(acc)
+```
+
+```{r}
+Y_val <- Y[4874:6500]
+Phi_val <- Phi[4874:6500,]
+```
+
+```{r}
+N_train = length(Y_train)
+N_val = length(Y_val)
+```
+
+```{r}
+w_copy <- w
+Jval<- c(1)
+Jtrain<- c(1)
+lam<- c(1)
+Id <- diag(ncol(Phi_Train))
+epochs = 100
+
+
+for (l2 in 0:100){
+     
+  for (e in 1:epochs) {
+ 
+  w_copy <- w_copy-eta*(t(Phi_Train)%*%(p_train-Y_train)+l2*w_copy)
+  p_train = sigmoid(Phi_Train%*%w_copy)
+  p_val = sigmoid(Phi_val%*%w_copy)
+  
+}
+    J_train = (1/N_train)* cross_entropy(Y_train,p_train)
+    J_val = (1/N_val)*cross_entropy(Y_val,p_val)
+    Jtrain[l2] <- J_train
+    Jval[l2] <- J_val
+    lam[l2] <-l2
+}
+```
+
+```{r}
+cvDF <- data.frame(
+  "Jt_line" <- Jtrain,
+  "Jv_line" <- Jval,
+  "Lam" <- lam
+)
+
+colnames(cvDF)[1] <- "Jt_line"
+colnames(cvDF)[2] <- "Jv_line"
+colnames(cvDF)[3] <- "Lam"
+
+
+```
+
+```{r}
+cvDF%>%
+ggplot(aes(x = lam))+
+  geom_line(y = Jv_line, color = "Blue")+
+  geom_line(y = Jt_line, color = "Black")+
+ylim(0,1)
+```
+
+```{r}
+cvDF%>%
+filter( Jv_line ==min(cvDF$Jv_line))
+```
+
+```{r}
+#choose lambda to be three
+
+w_copy <- w
+ for (e in 1:100) {
+  w_copy <- w_copy-eta*(t(Phi_Train)%*%(p_train-Y_train)+3*w_copy)
+  p_val = sigmoid(Phi_val%*%w_copy)
+ }
+w <- w_copy
+
+acc_val <- accuracy(Y_val,p_val)
+print(acc)
+```
+
+```{r}
+Y_test <- Y[6500:8124]
+Phi_test <- Phi[6500:8124,]
+p_test = sigmoid(Phi_test%*%w)
+```
+
+
+```{r}
+acc_val <- accuracy(Y_test,p_test)
+
+print(acc)
+```
